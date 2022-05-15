@@ -5,7 +5,10 @@ import {
   Validators,
   AbstractControl,
   ValidatorFn,
+  FormArray,
 } from '@angular/forms';
+
+import { debounceTime, tap } from 'rxjs/operators';
 
 import { Customer } from './customer';
 
@@ -43,6 +46,16 @@ function ratingRange(min: number, max: number): ValidatorFn {
 export class CustomerComponent implements OnInit {
   customerForm!: FormGroup;
   customer = new Customer();
+  emailMessage: string = '';
+
+  get addressBlock(): FormArray {
+    return this.customerForm.get('addressBlock') as FormArray;
+  }
+
+  private validationMessages = {
+    required: 'Please enter your email address',
+    email: 'Please enter an email address',
+  };
 
   constructor(private fb: FormBuilder) {}
 
@@ -61,7 +74,44 @@ export class CustomerComponent implements OnInit {
       notification: 'email',
       rating: [null, ratingRange(1, 5)],
       sendCatalog: true,
+      addressBlock: this.fb.array([this.buildAddress()]),
     });
+
+    this.customerForm.controls.notification.valueChanges.subscribe(
+      (notifyVia) => this.setNotification(notifyVia)
+    );
+
+    const emailControl = this.customerForm.get('emailGroup.email');
+    emailControl?.valueChanges
+      .pipe(
+        debounceTime(1000),
+        tap((x) => console.log('hi'))
+      )
+      .subscribe((value) => this.setMessage(emailControl));
+  }
+
+  buildAddress(): FormGroup {
+    return this.fb.group({
+      addressType: 'home',
+      street1: '',
+      street2: '',
+      state: '',
+      city: '',
+      zip: '',
+    });
+  }
+
+  addAddress(): void {
+    this.addressBlock.push(this.buildAddress());
+  }
+
+  setMessage(value: AbstractControl) {
+    this.emailMessage = '';
+    if ((value.touched || value.dirty) && value.errors) {
+      this.emailMessage = Object.keys(value.errors)
+        .map((key) => this.validationMessages[key])
+        .join(', ');
+    }
   }
 
   populateTestData(): void {
